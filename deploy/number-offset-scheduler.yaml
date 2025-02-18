@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: number-offset-scheduler-config
+  namespace: kube-system
+data:
+  scheduler-config.yaml: |
+    # stable v1 after version 1.25
+    apiVersion: kubescheduler.config.k8s.io/v1
+    kind: KubeSchedulerConfiguration
+    leaderElection:
+      leaderElect: false
+      resourceNamespace: kube-system
+      resourceName: number-offset-scheduler
+    profiles:
+      - schedulerName: number-offset-scheduler
+        plugins:
+          score:
+            enabled:
+              - name: number-offset-plugin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: number-offset-scheduler
+  namespace: kube-system
+  labels:
+    app: number-offset-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: number-offset-scheduler
+  template:
+    metadata:
+      labels:
+        app: number-offset-scheduler
+    spec:
+      serviceAccountName: number-offset-scheduler-sa
+      containers:
+        - name: scheduler
+          # change your image
+          image: lhb6540/number-offset-scheduler:latest
+          command:
+            - ./number-offset-scheduler
+            - --config=/etc/kubernetes/scheduler-config.yaml
+            - --v=5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 50Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kubernetes
+      # imagePullSecrets:
+      #   - name: <your image pull secret>
+      volumes:
+        - name: config
+          configMap:
+            name: number-offset-scheduler-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+    name: number-offset-scheduler-sa
+    namespace: kube-system
+---
+# todo: More refined permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+    name: number-offset-scheduler-sa-cluster-admin
+subjects:
+    - kind: ServiceAccount
+      name: number-offset-scheduler-sa
+      namespace: kube-system
+roleRef:
+    kind: ClusterRole
+    name: cluster-admin
+    apiGroup: rbac.authorization.k8s.io

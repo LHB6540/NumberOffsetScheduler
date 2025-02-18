@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: test
+  serviceName: ""
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: test
+      annotations:
+        number-offset-scheduler/scheduler-selector: "app=test"
+    spec:
+      # nodeSelector:
+      #   game: "true"
+      #   env: release
+      # imagePullSecrets:
+      #   - name: <your image pull secret>
+      schedulerName: custom-scheduler
+      containers:
+        - name: test
+          image: nginx
