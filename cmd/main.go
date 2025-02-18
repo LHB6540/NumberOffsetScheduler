@@ -65,8 +65,6 @@ func main() {
 	)
 
 	logs.InitLogs()
-	// 打印到控制台
-	logs.AddFlags(nil)
 	defer logs.FlushLogs()
 
 	if err := command.Execute(); err != nil {
