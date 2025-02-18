@@ -16,7 +16,7 @@ go mod tidy
 docker build -t number-offset-scheduler:latest  -f Dockerfile .
 ```
 ### Compatibility
-(Scheduler Configuration)[https://kubernetes.io/docs/reference/scheduling/config/] is now stable in version 1.25.
+[Scheduler Configuration](https://kubernetes.io/docs/reference/scheduling/config/) is now stable in version 1.25.
 Tests have been run on versions 1.25 and 1.31.
 
 ### Reference Documents
