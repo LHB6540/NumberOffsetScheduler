@@ -131,6 +131,14 @@ func (p *CustomScheduler) getMaxDiff(pod *v1.Pod) int {
 
 	for _, nodeInfo := range nodes {
 		var nodePodNumbers []int
+
+		// 以可读的格式记录一下nodeInfo.Node().Status.Conditions的所有信息
+		log.Printf("spec.Unschedulable %s", strconv.FormatBool(nodeInfo.Node().Spec.Unschedulable))
+		if nodeInfo.Node().Status.Conditions != nil {
+			for _, condition := range nodeInfo.Node().Status.Conditions {
+				log.Printf("Condition: %s", condition.Type)
+			}
+		}
 		for _, podInfo := range nodeInfo.Pods {
 			p := podInfo.Pod
 			if matchesSelector(p, selector) {
