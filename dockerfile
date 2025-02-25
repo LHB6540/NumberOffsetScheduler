@@ -7,8 +7,8 @@ WORKDIR /app
 COPY . .
 
 # 安装依赖并构建
-RUN CGO_ENABLED=0 GOOS=linux GOPROXY=https://goproxy.cn,direct GOARCH=amd64 go build -ldflags="-w -s" -o build/number-offset-scheduler ./cmd/main.go
-
+# RUN CGO_ENABLED=0 GOOS=linux GOPROXY=https://goproxy.cn,direct GOARCH=amd64 go build -ldflags="-w -s" -o build/number-offset-scheduler ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags="-w -s" -o build/number-offset-scheduler ./cmd/main.go
 # 最终阶段
 FROM alpine:3.18
 
