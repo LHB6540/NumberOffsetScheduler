@@ -1,13 +1,13 @@
 ### Description
 This is a custom scheduler for k8s. Its purpose is to allow statefulset pods to be deployed on optional nodes in a rolling manner according to their numbers, and to avoid pods with consecutive numbers from appearing on the same node. This is very useful for scenarios where business loads gradually reach pods according to pod numbers, such as game services corresponding to pod numbers.
 
-### deploy
+### Deploy
 The corresponding version products have been published to Docker Hub. You only need to execute the following command in the cluster to complete the deployment.
 ```
 kubectl apply -f deploy/number-offset-scheduler.yaml
 ```
 
-### development
+### Development
 The core logic is the scoring logic in pkg/scheduler.go. If you need to further modify the existing logic, you can execute
 ```
 git clone <repo>
@@ -15,6 +15,10 @@ git clone <repo>
 go mod tidy
 docker build -t number-offset-scheduler:latest  -f Dockerfile .
 ```
+Todo:
+- fix: Function getMaxDiff just use filtered nodes, but not all nodes.Now is all nodes,but it works well.
+- fix: log level;log detail;log fomat.
+
 ### Compatibility
 [Scheduler Configuration](https://kubernetes.io/docs/reference/scheduling/config/) is now stable in version 1.25.
 Tests have been run on versions 1.25 and 1.31.
