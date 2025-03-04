@@ -100,7 +100,7 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		} else {
 			// 如果有符合条件的pod，取差值
 			diff = currentPodNumber - maxLessThanCurrent
-			klog.Info("nodeName: %s is not empty,its score will be  currentPodNumber(%v) - maxLessThanCurrent(%v)", nodeName, currentPodNumber, maxLessThanCurrent)
+			klog.Infof("nodeName: %s is not empty,its score will be currentPodNumber(%v) - maxLessThanCurrent(%v)", nodeName, currentPodNumber, maxLessThanCurrent)
 			return int64(diff), nil
 			// allMaxDiff := p.getMaxDiff(pod)
 			// return int64(diff / allMaxDiff * 50), nil
