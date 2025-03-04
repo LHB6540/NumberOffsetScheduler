@@ -17,7 +17,7 @@ data:
         plugins:
           score:
             enabled:
-              - name: number-offset-plugin
+              - name: number-offset-scheduler
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -41,8 +41,9 @@ spec:
         - name: scheduler
           # change your image
           image: lhb6540/number-offset-scheduler:latest
+          imagePullPolicy: Always
           command:
-            - ./number-offset-scheduler
+            - /app/number-offset-scheduler
             - --config=/etc/kubernetes/scheduler-config.yaml
             - --v=5
           resources:
