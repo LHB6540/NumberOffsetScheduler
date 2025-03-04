@@ -8,13 +8,13 @@ spec:
     matchLabels:
       app: test
   serviceName: ""
-  replicas: 5
+  replicas: 10
   template:
     metadata:
       labels:
         app: test
       annotations:
-        number-offset-plugin/scheduler-selector: "app=test"
+        number-offset-scheduler/scheduler-selector: "app=test"
     spec:
       # nodeSelector:
       #   game: "true"
