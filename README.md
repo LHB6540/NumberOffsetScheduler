@@ -10,7 +10,7 @@ You can test by:
 ```
 kubectl apply -f deploy/test.yaml
 ```
-If you are using Open Kruis/Open Kruis Game, you can test by:
+If you are using Open Kruise/Open Kruise Game, you can test by:
 ```
 kubectl apply -f deploy/test-gss.yaml
 ```
@@ -65,7 +65,7 @@ n2: 2=2-0(get the max number less than 2, get the diff as score)
 n3: 1=2-1(get the max number less than 2, get the diff as score)  
 ```
 and pod-2 will be bound to n1.  
-7、Some special cases: If you use some frameworks, such as Open Kruis/Open Kruis Game, the pod numbers may not be consecutive, and you will encounter situations like this:  
+7、Some special cases: If you use some frameworks, such as Open Kruise/Open Kruise Game, the pod numbers may not be consecutive, and you will encounter situations like this:  
 ```
 n1: pod-2, pod-105  
 n2: pod-4, pod-107  
