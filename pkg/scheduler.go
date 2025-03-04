@@ -11,12 +11,13 @@ import (
 	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
 const (
-	PluginName          = "number-offset-plugin"
-	AnnotationKey       = "number-offset-plugin/scheduler-selector"
+	PluginName          = "number-offset-scheduler"
+	AnnotationKey       = "number-offset-scheduler/scheduler-selector"
 	//PodNumberAnnotation = "custom/pod-number"
 )
 
@@ -41,6 +42,7 @@ func (p *CustomScheduler) Name() string {
 }
 
 func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
+	log.Printf("!!!!!!!!!Now Scoring NodeName: %s",nodeName)
 	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
 	if err != nil {
 		return 0, framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %v", nodeName, err))
@@ -71,8 +73,11 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 	}
 
 	// 打分逻辑
-	// pod上面没有符合条件的pod，得分为100
-	// pod上面有符合条件的pod，并根据上面的规则获取最大编号，
+	// 情况1:节点上面没有符合条件的pod，得分为0，这是一种特殊情况。最终在归一化函数中得分将会最大。
+	// 情况2：节点上面有符合条件的pod，并且存在小于待调度pod的变好的pod，取节点上小于当前pod的pod的最大值，使用当前pod的编号减去最大小于当前pod的编号，作为得分，如果最终有大于100的，在归一化函数中处理。
+	// 情况3: 节点上面有符合条件的pod，但是最小的pod大于待调度pod，取节点上最小的pod编号作为得分。如果最终结果大于100，在归一化函数中处理。
+	
+	// 旧逻辑：
 	// 1、如果大于当前待调度的pod，则向下取小于待调度的pod的最大值，如果一直向下取到没有则视为没有pod，直接打分100
 	// 2、pod上面有符合条件的pod，并根据上面的规则获取最大编号，计算差值。同时获取所有节点上的最大编号的差值的最大值，以此为分母，当前节点差值为分子。乘以50进行归一化处理。
 	var diff int
@@ -80,7 +85,7 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		// 记录日志
 		glog.Infof("nodeName: %s is empty, nodePodNumbers: %v", nodeName, nodePodNumbers)
 		// 记录日志由于为空，打分100
-		return 100, nil
+		return 0, nil
 	} else {
 		sort.Ints(nodePodNumbers)
 		maxLessThanCurrent := -1
@@ -90,18 +95,20 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 				//break
 			}
 		}
-		//如果当前节点没有符合条件的pod，打分为51
+		//如果当前节点没有符合条件的pod，取当前pod的编号作为得分
 		if maxLessThanCurrent == -1 {
 			glog.Infof("nodeName: %s is not empty, but min nodePodNumbers: %v still greater than currentNumber ", nodeName, nodePodNumbers)
-			return 51, nil
+			// 返回pods中的最小值
+			return int64(nodePodNumbers[0]), nil
 		} else {
-			// 如果有符合条件的pod，调用函数获取所有节点上的最大编号的差值的最大值，以此为分母，当前节点差值为分子。乘以50进行归一化处理。
+			// 如果有符合条件的pod，取差值
 			diff = currentPodNumber - maxLessThanCurrent
-			allMaxDiff := p.getMaxDiff(pod)
-			// 记录节点信息
-			glog.Infof("nodeName: %s, nodePodNumbers: %v", nodeName, nodePodNumbers)
-			glog.Infof("maxDiff: %d, currentPodNumber: %d, maxLessThanCurrent: %d", allMaxDiff, currentPodNumber, maxLessThanCurrent)
-			return int64(diff / allMaxDiff * 50), nil
+			return int64(diff), nil
+			// allMaxDiff := p.getMaxDiff(pod)
+			// // 记录节点信息
+			// glog.Infof("nodeName: %s, nodePodNumbers: %v", nodeName, nodePodNumbers)
+			// glog.Infof("maxDiff: %d, currentPodNumber: %d, maxLessThanCurrent: %d", allMaxDiff, currentPodNumber, maxLessThanCurrent)
+			// return int64(diff / allMaxDiff * 50), nil
 		}
 	}
 
@@ -114,62 +121,40 @@ func (p *CustomScheduler) ScoreExtensions() framework.ScoreExtensions {
 
 // NormalizeScore implements framework.ScoreExtensions
 func (*CustomScheduler) NormalizeScore(ctx context.Context, state *framework.CycleState, p *v1.Pod, scores framework.NodeScoreList) *framework.Status {
+	log.Printf("!!!!!!!!!NormalizeScore is called, NodeScoreList: %v",scores)
+	// 在此处对分数进行归一化处理，如果分数为0，最后变为最大值100。
+	// 获取所有不为0的分数，取最大的分数
+	// 逐渐测试一个压缩比例，使得最大的分数能压缩到0-100之间
+	// 将这个比例应用到所有不为100的分数上
+	maxDiff := int64(0)
+	for i := range scores {
+		if scores[i].Score != 0 {
+			if scores[i].Score > maxDiff {
+				maxDiff = scores[i].Score
+			}
+		}
+	}
+	if maxDiff == 0 {
+		return nil
+	}
+	compress := int64(1)
+	if maxDiff > 100 {
+		compress := int64(1)
+		for maxDiff > 100 {
+			compress = compress * 2
+			maxDiff = maxDiff / compress
+		}
+	}
+	for i := range scores {
+		if scores[i].Score == 0 {
+			scores[i].Score = 100
+		}else {
+			scores[i].Score = int64(scores[i].Score / compress)
+		}
+	}
+	log.Printf("!!!!!!!!!NormalizeScore is called, NodeScoreList: %v",scores)
+	klog.Warningf("!!!!!!! Log by log, NodeScoreList: %v",scores)
 	return nil
-}
-
-
-func (p *CustomScheduler) getMaxDiff(pod *v1.Pod) int {
-	maxDiff := 0
-	currentPodNumber, _ := getPodNumber(pod)
-	selector := pod.Annotations[AnnotationKey]
-
-	nodes, err := p.handle.SnapshotSharedLister().NodeInfos().List()
-	if err != nil {
-		glog.Errorf("Failed to list nodes: %v", err)
-		return 100 // 默认值
-	}
-
-	for _, nodeInfo := range nodes {
-		var nodePodNumbers []int
-
-		// 以可读的格式记录一下nodeInfo.Node().Status.Conditions的所有信息
-		log.Printf("spec.Unschedulable %s", strconv.FormatBool(nodeInfo.Node().Spec.Unschedulable))
-		if nodeInfo.Node().Status.Conditions != nil {
-			for _, condition := range nodeInfo.Node().Status.Conditions {
-				log.Printf("Condition: %s", condition.Type)
-			}
-		}
-		for _, podInfo := range nodeInfo.Pods {
-			p := podInfo.Pod
-			if matchesSelector(p, selector) {
-				nodePodNumber, _ := getPodNumber(p)
-				nodePodNumbers = append(nodePodNumbers, nodePodNumber)
-			}
-		}
-
-		if len(nodePodNumbers) == 0 {
-			log.Printf("nodeName: %s is empty, don't change maxdiff ", nodeInfo.Node().Name, )
-			continue
-		}
-
-		sort.Ints(nodePodNumbers)
-		maxLessThanCurrent := -1
-		for _, number := range nodePodNumbers {
-			if number < currentPodNumber && number > maxLessThanCurrent {
-				maxLessThanCurrent = number
-			}
-		}
-
-		if maxLessThanCurrent != -1 {
-			diff := currentPodNumber - maxLessThanCurrent
-			if diff > maxDiff {
-				maxDiff = diff
-			}
-		}
-	}
-
-	glog.Infof("maxDiff: %d", maxDiff)
-	return maxDiff
 }
 
 func getPodNumber(pod *v1.Pod) (int, error) {
