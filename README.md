@@ -34,41 +34,41 @@ Todo:
 This page will show you how it work and how to use it: 
 [Configure Multiple Schedulers](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/)
 
-Core score function:
-Example:
-There is Node 1、2、3,without any pods.
-n1: []
-n2: []
-n3: []
-1、when pod-0 be scheduled,every node get 100 score,and pod will be bound to any node.
-2、If pod-0 had been bound to n2, when pod-1 be scheduled, n2 get score 1=2-1, n1 and n3 get score 100, and pod will be bound to n1 or n3.
-3、If pod-1 has been bound to n3, pod-2 will be bound to n1.
-4、Now，the node and pod Look like
-n1: pod-2
-n2: pod-0
-n3: pod-1
-5、When pod-3 be scheduled, n1 get score 1=3-2, n2 get score 1=3-0, n3 get score 2=3-1，and pod-3 will be bound to n2.
-6、If pod-0～pod-5 has been scheduled, and the nodes looks like this:
-n1: pod-2, pod-5
-n2: pod-0, pod-3
-n3: pod-1, pod-4
-when you delete pod-2 or recreate pod-0,the score will looks like:
-n1: 5(when no pod number is less than 2, get the min number as score)
-n2: 2=2-0(get the max number less than 2, get the diff as score)
-n3: 1=2-1(get the max number less than 2, get the diff as score)
-and pod-2 will be bound to n1.
-7、Some special cases: If you use some frameworks, such as Open Kruis/Open Kruis Game, the pod numbers may not be consecutive, and you will encounter situations like this:
-n1: pod-2, pod-105
-n2: pod-4, pod-107
-n3: pod-7, pod-108
-If you delete or recreate pod-4, the score will looks like:
-n1: 2=4-2(get the max number less than 4, get the diff as score)
-n2: 107(when no pod number is less than 4 get the min number as score)
-n3: 7(when no pod number is less than 4, get the min number as score)
-then the score of n1、n2 and n3 will be normailized to less than 100, and the score will be:
-n1: 1 = 2/2
-n2: 53 = 107/2
-n3: 3 = 7/2
+Core score function:  
+Example:   
+There is Node 1、2、3,without any pods.   
+n1: []   
+n2: []   
+n3: []   
+1、when pod-0 be scheduled,every node get 100 score,and pod will be bound to any node.   
+2、If pod-0 had been bound to n2, when pod-1 be scheduled, n2 get score 1=2-1, n1 and n3 get score 100, and pod will be bound to n1 or n3.   
+3、If pod-1 has been bound to n3, pod-2 will be bound to n1.   
+4、Now，the node and pod Look like   
+n1: pod-2   
+n2: pod-0    
+n3: pod-1   
+5、When pod-3 be scheduled, n1 get score 1=3-2, n2 get score 1=3-0, n3 get score 2=3-1，and pod-3 will be bound to n2.   
+6、If pod-0～pod-5 has been scheduled, and the nodes looks like this:  
+n1: pod-2, pod-5  
+n2: pod-0, pod-3  
+n3: pod-1, pod-4  
+when you delete pod-2 or recreate pod-0,the score will looks like:  
+n1: 5(when no pod number is less than 2, get the min number as score)  
+n2: 2=2-0(get the max number less than 2, get the diff as score)  
+n3: 1=2-1(get the max number less than 2, get the diff as score)  
+and pod-2 will be bound to n1.  
+7、Some special cases: If you use some frameworks, such as Open Kruis/Open Kruis Game, the pod numbers may not be consecutive, and you will encounter situations like this:  
+n1: pod-2, pod-105  
+n2: pod-4, pod-107  
+n3: pod-7, pod-108  
+If you delete or recreate pod-4, the score will looks like:  
+n1: 2=4-2(get the max number less than 4, get the diff as score)  
+n2: 107(when no pod number is less than 4 get the min number as score)  
+n3: 7(when no pod number is less than 4, get the min number as score)  
+then the score of n1、n2 and n3 will be normailized to less than 100, and the score will be:  
+n1: 1 = 2/2  
+n2: 53 = 107/2  
+n3: 3 = 7/2  
 
 ### Compatibility
 [Scheduler Configuration](https://kubernetes.io/docs/reference/scheduling/config/) is now stable in version 1.25.
