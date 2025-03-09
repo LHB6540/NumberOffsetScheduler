@@ -13,8 +13,8 @@ spec:
     metadata:
       labels:
         app: test
-      annotations:
-        index-offset-scheduler/scheduler-selector: "app=test"
+      # annotations:
+        # index-offset-scheduler/scheduler-selector: "app=test"
     spec:
       # nodeSelector:
       #   game: "true"

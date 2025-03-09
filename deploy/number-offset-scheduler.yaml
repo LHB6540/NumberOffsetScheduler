@@ -1,8 +1,261 @@
+---
+# service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+    name: index-offset-scheduler
+    namespace: kruise-game-system
+
+---
+# namespace role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: 'true'
+  name: extension-apiserver-authentication-reader
+  namespace: kruise-game-system
+rules:
+  - apiGroups:
+      - ''
+    resourceNames:
+      - extension-apiserver-authentication
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+---
+# clusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: 'true'
+  name: index-offset-scheduler
+rules:
+  - apiGroups:
+      - ''
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+  - apiGroups:
+      - coordination.k8s.io
+    resourceNames:
+      - kube-scheduler
+      - index-offset-scheduler
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leasecandidates
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - pods
+    verbs:
+      - delete
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - bindings
+      - pods/binding
+    verbs:
+      - create
+  - apiGroups:
+      - ''
+    resources:
+      - pods/status
+    verbs:
+      - patch
+      - update
+  - apiGroups:
+      - ''
+    resources:
+      - replicationcontrollers
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+      - extensions
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - persistentvolumeclaims
+      - persistentvolumes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csinodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csidrivers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - csistoragecapacities
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resourceNames:
+      - kube-scheduler
+      - index-offset-scheduler
+    resources:
+      - endpoints
+    verbs:
+      - delete
+      - get
+      - patch
+      - update
+
+---
+# ClusterRoleBinding: index-offset-scheduler
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+    name: index-offset-scheduler-as-kube-scheduler
+subjects:
+    - kind: ServiceAccount
+      name: index-offset-scheduler
+      namespace: kruise-game-system
+roleRef:
+    kind: ClusterRole
+    name: index-offset-scheduler
+    apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRoleBinding: system:volume-scheduler
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: index-offset-scheduler-as-volume-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: index-offset-scheduler
+    namespace: kruise-game-system
+roleRef:
+  kind: ClusterRole
+  name: system:volume-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+# RoleBinding: apiserver
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: index-offset-scheduler-extension-apiserver-authentication-reader
+  namespace: kube-system
+roleRef:
+  kind: Role
+  name: extension-apiserver-authentication-reader
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: index-offset-scheduler
+    namespace: kruise-game-system
+---
+# configmap
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: index-offset-scheduler-config
-  namespace: kube-system
+  namespace: kruise-game-system
 data:
   scheduler-config.yaml: |
     # stable v1 after version 1.25
@@ -10,7 +263,7 @@ data:
     kind: KubeSchedulerConfiguration
     leaderElection:
       leaderElect: false
-      resourceNamespace: kube-system
+      resourceNamespace: kruise-game-system
       resourceName: index-offset-scheduler
     profiles:
       - schedulerName: index-offset-scheduler
@@ -19,11 +272,12 @@ data:
             enabled:
               - name: index-offset-scheduler
 ---
+# deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: index-offset-scheduler
-  namespace: kube-system
+  namespace: kruise-game-system
   labels:
     app: index-offset-scheduler
 spec:
@@ -36,7 +290,7 @@ spec:
       labels:
         app: index-offset-scheduler
     spec:
-      serviceAccountName: index-offset-scheduler-sa
+      serviceAccountName: index-offset-scheduler
       containers:
         - name: scheduler
           # change your image
@@ -62,23 +316,3 @@ spec:
         - name: config
           configMap:
             name: index-offset-scheduler-config
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-    name: index-offset-scheduler-sa
-    namespace: kube-system
----
-# todo: More refined permissions
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-    name: index-offset-scheduler-sa-cluster-admin
-subjects:
-    - kind: ServiceAccount
-      name: index-offset-scheduler-sa
-      namespace: kube-system
-roleRef:
-    kind: ClusterRole
-    name: cluster-admin
-    apiGroup: rbac.authorization.k8s.io
