@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	plugin "number-offset-scheduler/pkg"
+	plugin "index-offset-scheduler/pkg"
 	"k8s.io/component-base/logs"
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 	"os"

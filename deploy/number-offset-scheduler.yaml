@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: number-offset-scheduler-config
+  name: index-offset-scheduler-config
   namespace: kube-system
 data:
   scheduler-config.yaml: |
@@ -11,39 +11,39 @@ data:
     leaderElection:
       leaderElect: false
       resourceNamespace: kube-system
-      resourceName: number-offset-scheduler
+      resourceName: index-offset-scheduler
     profiles:
-      - schedulerName: number-offset-scheduler
+      - schedulerName: index-offset-scheduler
         plugins:
           score:
             enabled:
-              - name: number-offset-scheduler
+              - name: index-offset-scheduler
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: number-offset-scheduler
+  name: index-offset-scheduler
   namespace: kube-system
   labels:
-    app: number-offset-scheduler
+    app: index-offset-scheduler
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: number-offset-scheduler
+      app: index-offset-scheduler
   template:
     metadata:
       labels:
-        app: number-offset-scheduler
+        app: index-offset-scheduler
     spec:
-      serviceAccountName: number-offset-scheduler-sa
+      serviceAccountName: index-offset-scheduler-sa
       containers:
         - name: scheduler
           # change your image
-          image: lhb6540/number-offset-scheduler:latest
+          image: lhb6540/index-offset-scheduler:latest
           imagePullPolicy: Always
           command:
-            - /app/number-offset-scheduler
+            - /app/index-offset-scheduler
             - --config=/etc/kubernetes/scheduler-config.yaml
             - --v=5
           resources:
@@ -61,22 +61,22 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: number-offset-scheduler-config
+            name: index-offset-scheduler-config
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-    name: number-offset-scheduler-sa
+    name: index-offset-scheduler-sa
     namespace: kube-system
 ---
 # todo: More refined permissions
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-    name: number-offset-scheduler-sa-cluster-admin
+    name: index-offset-scheduler-sa-cluster-admin
 subjects:
     - kind: ServiceAccount
-      name: number-offset-scheduler-sa
+      name: index-offset-scheduler-sa
       namespace: kube-system
 roleRef:
     kind: ClusterRole

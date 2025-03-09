@@ -14,14 +14,14 @@ spec:
       labels:
         app: test
       annotations:
-        number-offset-scheduler/scheduler-selector: "app=test"
+        index-offset-scheduler/scheduler-selector: "app=test"
     spec:
       # nodeSelector:
       #   game: "true"
       #   env: release
       # imagePullSecrets:
       #   - name: <your image pull secret>
-      schedulerName: number-offset-scheduler
+      schedulerName: index-offset-scheduler
       containers:
         - name: test
           image: nginx

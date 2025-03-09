@@ -3,19 +3,20 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"sort"
-	"strconv"
-	"strings"
 )
 
 const (
-	PluginName    = "number-offset-scheduler"
-	AnnotationKey = "number-offset-scheduler/scheduler-selector"
-	//PodNumberAnnotation = "custom/pod-number"
+	PluginName    = "index-offset-scheduler"
+	AnnotationKey = "index-offset-scheduler/scheduler-selector"
 )
 
 type CustomScheduler struct {
@@ -45,27 +46,46 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		return 1, framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %v", nodeName, err))
 	}
 
-	currentPodNumber, err := getPodNumber(pod)
+	currentPodIndex, err := getPodIndex(pod)
 	if err != nil {
 		return 1, framework.AsStatus(fmt.Errorf("invalid annotation format for pod %s: %v", pod.Name, err))
 	}
-
+	// 判断是否存在AnnotationKey，如果不存在，则以待调度的pod的label作为selector
 	selector := pod.Annotations[AnnotationKey]
 	// AnnotationKey格式为k1=v1，如果是多个，使用","连接
 	// 提取成selector列表，用于匹配，提取和匹配逻辑在matchesSelector函数中实现
-	if selector == "" {
-		return 1, framework.AsStatus(fmt.Errorf("annotation %s not found", AnnotationKey))
-	}
-
-	var nodePodNumbers []int
-	for _, podInfo := range nodeInfo.Pods {
-		p := podInfo.Pod
-		if matchesSelector(p, selector) {
-			nodePodNumber, err := getPodNumber(p)
+	/*
+	一般情况下，通过pod的索引让pod滚动分布，调度的对象和比较的pod对象拥有相同的lables，因此无需指定注解标识要比较的pod的特征。
+	考虑一些极特殊的需求，例如通过此调度器，让game服务滚动分布了，同时希望让相同编号的mail服务也滚动分布，此时需要通过pod的注解标识来指定mail服务pod的特征。
+	当然上面这个例子，最好的做法是将game服务和mail服务放在同一个pod中。
+	*/
+	var nodePodIndexs []int
+	if selector != "" {
+		// 添加正则判断：selector格式是否符合：k1=v1，如果是多个，使用","连接
+		re, _ := regexp.Compile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(,[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
+		if !re.MatchString(selector) {
+			return 1, framework.NewStatus(framework.Error, fmt.Sprintf("selector format error: %s", selector))
+		}
+		for _, podInfo := range nodeInfo.Pods {
+			p := podInfo.Pod
+			if matchesSelector(p, selector) {
+				nodePodIndex, err := getPodIndex(p)
+				if err != nil {
+					continue
+				}
+				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
+			}
+		}
+	}else{
+		for _, podInfo := range nodeInfo.Pods {
+			// 判断当前pod的lables是否和节点上的pod的lables相同
+			if compareLables(pod.Labels, podInfo.Pod.Labels){
+			nodePodIndex, err := getPodIndex(podInfo.Pod)
 			if err != nil {
 				continue
 			}
-			nodePodNumbers = append(nodePodNumbers, nodePodNumber)
+			nodePodIndexs = append(nodePodIndexs, nodePodIndex)
+			}
 		}
 	}
 
@@ -78,29 +98,29 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 	// 1、如果大于当前待调度的pod，则向下取小于待调度的pod的最大值，如果一直向下取到没有则视为没有pod，直接打分100
 	// 2、pod上面有符合条件的pod，并根据上面的规则获取最大编号，计算差值。同时获取所有节点上的最大编号的差值的最大值，以此为分母，当前节点差值为分子。乘以50进行归一化处理。
 	var diff int
-	if len(nodePodNumbers) == 0 {
+	if len(nodePodIndexs) == 0 {
 		// 记录日志
 		klog.Infof("No pod in nodeName: %s is empty, its score is 0, and it's best", nodeName)
 		// 记录日志由于为空，打分100
 		return 0, nil
 	} else {
-		sort.Ints(nodePodNumbers)
+		sort.Ints(nodePodIndexs)
 		maxLessThanCurrent := -1
-		for _, number := range nodePodNumbers {
-			if number < currentPodNumber && number > maxLessThanCurrent {
-				maxLessThanCurrent = number
+		for _, index := range nodePodIndexs {
+			if index < currentPodIndex && index > maxLessThanCurrent {
+				maxLessThanCurrent = index
 				//break
 			}
 		}
 		//如果当前节点没有符合条件的pod，取当前pod的编号作为得分
 		if maxLessThanCurrent == -1 {
-			klog.Infof("nodeName: %s is not empty, but min nodePodNumbers: %v still greater than currentNumber, its score will be  min nodePodNumbers", nodeName, nodePodNumbers)
+			klog.Infof("nodeName: %s is not empty, but min nodePodIndexs: %v still greater than currentIndex, its score will be  min nodePodIndexs", nodeName, nodePodIndexs)
 			// 返回pods中的最小值
-			return int64(nodePodNumbers[0]), nil
+			return int64(nodePodIndexs[0]), nil
 		} else {
 			// 如果有符合条件的pod，取差值
-			diff = currentPodNumber - maxLessThanCurrent
-			klog.Infof("nodeName: %s is not empty,its score will be currentPodNumber(%v) - maxLessThanCurrent(%v)", nodeName, currentPodNumber, maxLessThanCurrent)
+			diff = currentPodIndex - maxLessThanCurrent
+			klog.Infof("nodeName: %s is not empty,its score will be currentPodIndex(%v) - maxLessThanCurrent(%v)", nodeName, currentPodIndex, maxLessThanCurrent)
 			return int64(diff), nil
 			// allMaxDiff := p.getMaxDiff(pod)
 			// return int64(diff / allMaxDiff * 50), nil
@@ -150,7 +170,7 @@ func (*CustomScheduler) NormalizeScore(ctx context.Context, state *framework.Cyc
 	return nil
 }
 
-func getPodNumber(pod *v1.Pod) (int, error) {
+func getPodIndex(pod *v1.Pod) (int, error) {
 	// 从pod-name中提取pod的序号
 	if pod.Name == "" {
 		return 0, fmt.Errorf("pod name is empty")
@@ -160,16 +180,16 @@ func getPodNumber(pod *v1.Pod) (int, error) {
 	if len(parts) < 2 {
 		return 0, fmt.Errorf("invalid pod name format")
 	}
-	numberStr := parts[len(parts)-1]
+	indexStr := parts[len(parts)-1]
 
-	if numberStr == "" {
+	if indexStr == "" {
 		return 0, fmt.Errorf("pod num is empty")
 	}
-	number, err := strconv.Atoi(numberStr)
+	index, err := strconv.Atoi(indexStr)
 	if err != nil {
-		return 0, fmt.Errorf("annotation value is not a number: %s", numberStr)
+		return 0, fmt.Errorf("annotation value is not a index: %s", indexStr)
 	}
-	return number, nil
+	return index, nil
 }
 
 func matchesSelector(pod *v1.Pod, selector string) bool {
@@ -182,6 +202,21 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 		}
 		key, value := kv[0], kv[1]
 		// 判断key是否存在以及值是否相等
+		if _, ok := podLabels[key]; !ok {
+			return false
+		}
+		if podLabels[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func compareLables(podLabels map[string]string, selectorLabels map[string]string) bool {
+	if len(podLabels) != len(selectorLabels) {
+		return false
+	}
+	for key, value := range selectorLabels {
 		if _, ok := podLabels[key]; !ok {
 			return false
 		}

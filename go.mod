@@ -1,4 +1,4 @@
-module number-offset-scheduler
+module index-offset-scheduler
 
 go 1.22.0
 

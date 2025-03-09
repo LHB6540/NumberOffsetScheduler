@@ -1,10 +1,10 @@
 ### Description
-This is a custom scheduler for k8s. Its purpose is to allow statefulset pods to be deployed on optional nodes in a rolling manner according to their numbers, and to avoid pods with consecutive numbers from appearing on the same node. This is very useful for scenarios where business loads gradually reach pods according to pod numbers, such as game services corresponding to pod numbers.
+This is a custom scheduler for k8s. Its purpose is to allow statefulset pods to be deployed on optional nodes in a rolling manner according to their indexs, and to avoid pods with consecutive indexs from appearing on the same node. This is very useful for scenarios where business loads gradually reach pods according to pod indexs, such as game services corresponding to pod indexs.
 
 ### Deploy
 The corresponding version products have been published to Docker Hub. You only need to execute the following command in the cluster to complete the deployment.
 ```
-kubectl apply -f deploy/number-offset-scheduler.yaml
+kubectl apply -f deploy/index-offset-scheduler.yaml
 ```
 You can test by:
 ```
@@ -22,7 +22,7 @@ The core logic is the scoring logic in pkg/scheduler.go. If you need to further 
 git clone <repo>
 # add your code
 go mod tidy
-docker build -t number-offset-scheduler:latest  -f Dockerfile .
+docker build -t index-offset-scheduler:latest  -f Dockerfile .
 ```
 Done:
 - fix: Function getMaxDiff just use filtered nodes, but not all nodes.Now is all nodes,but it works well.
@@ -60,12 +60,12 @@ n3: pod-1, pod-4
 ```
 when you delete pod-2 or recreate pod-0,the score will looks like: 
 ``` 
-n1: 5(when no pod number is less than 2, get the min number as score)  
-n2: 2=2-0(get the max number less than 2, get the diff as score)  
-n3: 1=2-1(get the max number less than 2, get the diff as score)  
+n1: 5(when no pod index is less than 2, get the min index as score)  
+n2: 2=2-0(get the max index less than 2, get the diff as score)  
+n3: 1=2-1(get the max index less than 2, get the diff as score)  
 ```
 and pod-2 will be bound to n1.  
-7、Some special cases: If you use some frameworks, such as Open Kruise/Open Kruise Game, the pod numbers may not be consecutive, and you will encounter situations like this:  
+7、Some special cases: If you use some frameworks, such as Open Kruise/Open Kruise Game, the pod indexs may not be consecutive, and you will encounter situations like this:  
 ```
 n1: pod-2, pod-105  
 n2: pod-4, pod-107  
@@ -73,9 +73,9 @@ n3: pod-7, pod-108
 ```
 If you delete or recreate pod-4, the score will looks like: 
 ``` 
-n1: 2=4-2(get the max number less than 4, get the diff as score)  
-n2: 107(when no pod number is less than 4 get the min number as score)  
-n3: 7(when no pod number is less than 4, get the min number as score)
+n1: 2=4-2(get the max index less than 4, get the diff as score)  
+n2: 107(when no pod index is less than 4 get the min index as score)  
+n3: 7(when no pod index is less than 4, get the min index as score)
 ```  
 then the score of n1、n2 and n3 will be normailized to less than 100, and the score will be:  
 ```

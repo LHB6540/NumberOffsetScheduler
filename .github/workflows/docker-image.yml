@@ -11,11 +11,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build the Docker image with code tag
-      run: docker build . --file Dockerfile --tag lhb6540/number-offset-scheduler:${{ github.ref_name }}
+      run: docker build . --file Dockerfile --tag lhb6540/index-offset-scheduler:${{ github.ref_name }}
     - name: Tag image
       run: |
-        docker tag lhb6540/number-offset-scheduler:${{ github.ref_name }} lhb6540/number-offset-scheduler:latest
+        docker tag lhb6540/index-offset-scheduler:${{ github.ref_name }} lhb6540/index-offset-scheduler:latest
     - name: Push the Docker image
       run: |
         docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-        docker push lhb6540/number-offset-scheduler:latest
+        docker push lhb6540/index-offset-scheduler:latest
