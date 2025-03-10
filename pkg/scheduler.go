@@ -102,10 +102,13 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 			// }
 			if compareOwnerReferences(pod, podInfo.Pod){
 				nodePodIndex, err := getPodIndex(podInfo.Pod)
+				klog.Infof("%s is  belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 				if err != nil {
 					continue
 				}
 				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
+			}else{
+				klog.Infof("%s is not belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 			}
 		}
 	}
@@ -254,18 +257,18 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 // 判断pod的namespace、ownerReferences中的kind和name是否与selector中的namespace、ownerReferences中的kind和name匹配
 func compareOwnerReferences(pod *v1.Pod, nodePod *v1.Pod) bool {
 	if pod.Namespace != nodePod.Namespace {
-		klog.Infof("podNamespace: %s is not equal to selectorNamespace: %s", pod.Namespace, nodePod.Namespace)
+		klog.Infof("%s's podNamespace: %s is not equal to nodePod %s's Namespace: %s",pod.Name,pod.Namespace, nodePod.Name, nodePod.Namespace)
 		return false
 	}
 	if nodePod.OwnerReferences == nil || len(nodePod.OwnerReferences) != 1 {
-		klog.Infof("podOwnerReferences of Node's pod is empty or len is not 1")
+		klog.Infof("%s's podOwnerReferences of Node's pod is empty or len is not 1", nodePod.Name)
 		return false
 	}
 	if nodePod.OwnerReferences[0].Kind != "StatefulSet"{
-		klog.Infof("podOwnerReferences of Node's pod is not StatefulSet")
+		klog.Infof("%s's podOwnerReferences of Node's pod is not StatefulSet", nodePod.Name)
 	}
 	if pod.OwnerReferences[0].Name != nodePod.OwnerReferences[0].Name || string(pod.OwnerReferences[0].UID) != string(nodePod.OwnerReferences[0].UID) {
-		klog.Infof("podOwnerReferences of pod is not equal to selectorOwnerReferences of Node's pod")
+		klog.Infof("%s's podOwnerReferences of pod: %s %s is not equal to OwnerReferences of Node %s's pod: %s %s ", pod.Name, pod.OwnerReferences[0].Name, pod.OwnerReferences[0].UID, nodePod.Name, nodePod.OwnerReferences[0].Name, nodePod.OwnerReferences[0].UID)
 		return false
 	}
 	return true
