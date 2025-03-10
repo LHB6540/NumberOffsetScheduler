@@ -50,7 +50,7 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 	if err != nil {
 		return 1, framework.AsStatus(fmt.Errorf("invalid annotation format for pod %s: %v", pod.Name, err))
 	}
-	// 判断是否存在AnnotationKey，如果不存在，则以待调度的pod的label作为selector
+	// 判断是否存在AnnotationKey，如果不存在，则通过pod的ownerReference来匹配.
 	selector, ok := pod.Annotations[AnnotationKey]
 	// AnnotationKey格式为k1=v1，如果是多个，使用","连接
 	// 提取成selector列表，用于匹配，提取和匹配逻辑在matchesSelector函数中实现
@@ -58,6 +58,7 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		一般情况下，通过pod的索引让pod滚动分布，调度的对象和比较的pod对象拥有相同的lables，因此无需指定注解标识要比较的pod的特征。
 		考虑一些极特殊的需求，例如通过此调度器，让game服务滚动分布了，同时希望让相同编号的mail服务也滚动分布，此时需要通过pod的注解标识来指定mail服务pod的特征。
 		当然上面这个例子，最好的做法是将game服务和mail服务放在同一个pod中。
+		这个需求更可能出现在手动管理一个个pod的情况，即pod不属于任何statefulset对象。在比较时，会尝试比较labels和namespace。请尽量不要这么做，如果你有跳过某些索引编号的需求，可以查看下open kruise game这个项目。
 	*/
 	var nodePodIndexs []int
 	if ok {
@@ -68,6 +69,9 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		}
 		for _, podInfo := range nodeInfo.Pods {
 			p := podInfo.Pod
+			if p.Namespace != pod.Namespace {
+				continue
+			}
 			if matchesSelector(p, selector) {
 				nodePodIndex, err := getPodIndex(p)
 				if err != nil {
@@ -77,10 +81,26 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 			}
 		}
 	} else {
+		// 当前pod是否属于某个statefulset。
+		// 当前调度器不支持pod属于多个controller的情况。
+		if pod.OwnerReferences == nil || len(pod.OwnerReferences) != 1 {
+			klog.Infof("pod %s is not belong to any workload or pod is belong to mutil workload", pod.Name)
+			return 1, framework.NewStatus(framework.Error, fmt.Sprintf("pod %s is not belong to any statefulset", pod.Name))
+		}
+		if pod.OwnerReferences[0].Kind != "StatefulSet" {
+			klog.Infof("pod %s is not belong to any statefulset", pod.Name)
+			return 1, framework.NewStatus(framework.Error, fmt.Sprintf("pod %s is not belong to any statefulset", pod.Name))
+		}
 		for _, podInfo := range nodeInfo.Pods {
-			// 判断当前pod的lables是否和节点上的pod的lables相同
-			klog.Infof("Now podName: %s, podLabels: %v, nodePodLabels: %v", pod.Name, pod.Labels, podInfo.Pod.Labels)
-			if compareLables(pod.Labels, podInfo.Pod.Labels) {
+			// klog.Infof("Now podName: %s, podLabels: %v, nodePodLabels: %v", pod.Name, pod.Labels, podInfo.Pod.Labels)
+			// if compareLables(pod.Labels, podInfo.Pod.Labels) {
+			// 	nodePodIndex, err := getPodIndex(podInfo.Pod)
+			// 	if err != nil {
+			// 		continue
+			// 	}
+			// 	nodePodIndexs = append(nodePodIndexs, nodePodIndex)
+			// }
+			if compareOwnerReferences(pod, podInfo.Pod){
 				nodePodIndex, err := getPodIndex(podInfo.Pod)
 				if err != nil {
 					continue
@@ -213,20 +233,40 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 	return true
 }
 
-func compareLables(podLabels map[string]string, selectorLabels map[string]string) bool {
-	if len(podLabels) != len(selectorLabels) {
-		klog.Infof("podLabels's length is not equal to selectorLabels")
+// func compareLables(podLabels map[string]string, selectorLabels map[string]string) bool {
+// 	if len(podLabels) != len(selectorLabels) {
+// 		klog.Infof("podLabels's length is not equal to selectorLabels")
+// 		return false
+// 	}
+// 	for key, value := range selectorLabels {
+// 		if _, ok := podLabels[key]; !ok {
+// 			klog.Infof("podLabels key: %s is not exist", key)
+// 			return false
+// 		}
+// 		if podLabels[key] != value {
+// 			klog.Infof("podLabels key: %s value: %s is not equal to selectorLabels value: %s", key, podLabels[key], value)
+// 			return false
+// 		}
+// 	}
+// 	return true
+// }
+
+// 判断pod的namespace、ownerReferences中的kind和name是否与selector中的namespace、ownerReferences中的kind和name匹配
+func compareOwnerReferences(pod *v1.Pod, nodePod *v1.Pod) bool {
+	if pod.Namespace != nodePod.Namespace {
+		klog.Infof("podNamespace: %s is not equal to selectorNamespace: %s", pod.Namespace, nodePod.Namespace)
 		return false
 	}
-	for key, value := range selectorLabels {
-		if _, ok := podLabels[key]; !ok {
-			klog.Infof("podLabels key: %s is not exist", key)
-			return false
-		}
-		if podLabels[key] != value {
-			klog.Infof("podLabels key: %s value: %s is not equal to selectorLabels value: %s", key, podLabels[key], value)
-			return false
-		}
+	if nodePod.OwnerReferences == nil || len(nodePod.OwnerReferences) != 1 {
+		klog.Infof("podOwnerReferences of Node's pod is empty or len is not 1")
+		return false
+	}
+	if nodePod.OwnerReferences[0].Kind != "StatefulSet"{
+		klog.Infof("podOwnerReferences of Node's pod is not StatefulSet")
+	}
+	if pod.OwnerReferences[0].Name != nodePod.OwnerReferences[0].Name || string(pod.OwnerReferences[0].UID) != string(nodePod.OwnerReferences[0].UID) {
+		klog.Infof("podOwnerReferences of pod is not equal to selectorOwnerReferences of Node's pod")
+		return false
 	}
 	return true
 }
