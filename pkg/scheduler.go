@@ -165,29 +165,26 @@ func (*CustomScheduler) NormalizeScore(ctx context.Context, state *framework.Cyc
 	// 逐渐测试一个压缩比例，使得最大的分数能压缩到0-100之间
 	// 将这个比例应用到所有不为100的分数上
 	maxDiff := int64(0)
-	for i := range scores {
-		if scores[i].Score != 0 {
-			if scores[i].Score > maxDiff {
-				maxDiff = scores[i].Score
-			}
+	for _, nodeScore := range scores {
+		if nodeScore.Score > maxDiff {
+			maxDiff = nodeScore.Score
 		}
 	}
 	if maxDiff == 0 {
 		return nil
 	}
 	compress := int64(1)
-	if maxDiff > 100 {
-		compress := int64(1)
-		for maxDiff > 100 {
-			compress = compress * 2
-			maxDiff = maxDiff / compress
-		}
+	for maxDiff > 100 {
+		compress = compress * 2
+		maxDiff = maxDiff / compress
 	}
-	for i := range scores {
-		if scores[i].Score == 0 {
+	klog.Infof("NormalizeScore is called, maxDiff: %v, compress: %v", maxDiff, compress)
+	for i, NodeScore := range scores {
+		if NodeScore.Score == 0 {
 			scores[i].Score = 100
 		} else {
-			scores[i].Score = int64(scores[i].Score / compress)
+			scores[i].Score = int64(NodeScore.Score / compress)
+			klog.Infof("NormalizeScore is called, After Normalize, NodeScore %s is : %v %v", scores[i].Name, scores[i].Score, NodeScore.Score)
 		}
 	}
 	klog.Infof("NormalizeScore is called, After Normalize, NodeScoreList: %v", scores)
