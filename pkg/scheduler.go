@@ -25,11 +25,6 @@ type CustomScheduler struct {
 
 var _ = framework.ScorePlugin(&CustomScheduler{})
 
-//	func New(_ runtime.Object, h framework.Handle) (framework.Plugin, error) {
-//		return &CustomScheduler{
-//			handle: h,
-//		}, nil
-//	}
 func New(ctx context.Context, configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	// 插件初始化逻辑
 	return &CustomScheduler{handle: handle}, nil
@@ -92,14 +87,14 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 			return 1, framework.NewStatus(framework.Error, fmt.Sprintf("pod %s is not belong to any statefulset", pod.Name))
 		}
 		for _, podInfo := range nodeInfo.Pods {
-			if compareOwnerReferences(pod, podInfo.Pod){
+			if compareOwnerReferences(pod, podInfo.Pod) {
 				nodePodIndex, err := getPodIndex(podInfo.Pod)
 				debugLog("%s is  belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 				if err != nil {
 					continue
 				}
 				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
-			}else{
+			} else {
 				debugLog("%s is not belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 			}
 		}
@@ -176,7 +171,7 @@ func (*CustomScheduler) NormalizeScore(ctx context.Context, state *framework.Cyc
 			scores[i].Score = 100
 		} else {
 			scores[i].Score = int64(NodeScore.Score / compress)
-			klog.Infof("NormalizeScore is called, After Normalize, NodeScore %s is : %v %v", scores[i].Name, scores[i].Score, NodeScore.Score)
+			debugLog("After Normalize, NodeScore %s is : %v %v", scores[i].Name, scores[i].Score, NodeScore.Score)
 		}
 	}
 	klog.Infof("NormalizeScore is called, After Normalize, NodeScoreList: %v", scores)
@@ -228,14 +223,14 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 // 判断pod的namespace、ownerReferences中的kind和name是否与selector中的namespace、ownerReferences中的kind和name匹配
 func compareOwnerReferences(pod *v1.Pod, nodePod *v1.Pod) bool {
 	if pod.Namespace != nodePod.Namespace {
-		debugLog("%s's podNamespace: %s is not equal to nodePod %s's Namespace: %s",pod.Name,pod.Namespace, nodePod.Name, nodePod.Namespace)
+		debugLog("%s's podNamespace: %s is not equal to nodePod %s's Namespace: %s", pod.Name, pod.Namespace, nodePod.Name, nodePod.Namespace)
 		return false
 	}
 	if nodePod.OwnerReferences == nil || len(nodePod.OwnerReferences) != 1 {
 		debugLog("%s's podOwnerReferences of Node's pod is empty or len is not 1", nodePod.Name)
 		return false
 	}
-	if nodePod.OwnerReferences[0].Kind != "StatefulSet"{
+	if nodePod.OwnerReferences[0].Kind != "StatefulSet" {
 		debugLog("%s's podOwnerReferences of Node's pod is not StatefulSet", nodePod.Name)
 	}
 	if pod.OwnerReferences[0].Name != nodePod.OwnerReferences[0].Name || string(pod.OwnerReferences[0].UID) != string(nodePod.OwnerReferences[0].UID) {
@@ -245,9 +240,9 @@ func compareOwnerReferences(pod *v1.Pod, nodePod *v1.Pod) bool {
 	return true
 }
 
-// 自定义日志打印方法，当klog.v(6)时才打印
+// 自定义日志打印方法，当klog.v(6)时才打印用于调试
 func debugLog(format string, args ...interface{}) {
-    if klog.V(6).Enabled(){
-        klog.Infof(format, args...)
-    }
+	if klog.V(6).Enabled() {
+		klog.Infof(format, args...)
+	}
 }

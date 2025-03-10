@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	plugin "index-offset-scheduler/pkg"
-	"k8s.io/component-base/logs"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
 	"os"
 )
@@ -13,10 +13,8 @@ func main() {
 		app.WithPlugin(plugin.PluginName, plugin.New),
 	)
 
-	logs.InitLogs()
-	// 打印到控制台
-	// logs.AddFlags(nil)
-	defer logs.FlushLogs()
+	klog.InitFlags(nil)
+	defer klog.Flush()
 
 	if err := command.Execute(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)

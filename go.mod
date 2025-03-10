@@ -7,9 +7,10 @@ go 1.22.0
 require (
 	k8s.io/api v0.31.2
 	k8s.io/apimachinery v0.31.2
-	k8s.io/component-base v0.31.2
 	k8s.io/kubernetes v1.31.2
 )
+
+require k8s.io/component-base v0.31.2 // indirect
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
