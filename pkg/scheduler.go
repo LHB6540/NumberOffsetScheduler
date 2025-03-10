@@ -92,23 +92,15 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 			return 1, framework.NewStatus(framework.Error, fmt.Sprintf("pod %s is not belong to any statefulset", pod.Name))
 		}
 		for _, podInfo := range nodeInfo.Pods {
-			// klog.Infof("Now podName: %s, podLabels: %v, nodePodLabels: %v", pod.Name, pod.Labels, podInfo.Pod.Labels)
-			// if compareLables(pod.Labels, podInfo.Pod.Labels) {
-			// 	nodePodIndex, err := getPodIndex(podInfo.Pod)
-			// 	if err != nil {
-			// 		continue
-			// 	}
-			// 	nodePodIndexs = append(nodePodIndexs, nodePodIndex)
-			// }
 			if compareOwnerReferences(pod, podInfo.Pod){
 				nodePodIndex, err := getPodIndex(podInfo.Pod)
-				klog.Infof("%s is  belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
+				debugLog("%s is  belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 				if err != nil {
 					continue
 				}
 				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
 			}else{
-				klog.Infof("%s is not belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
+				debugLog("%s is not belong to the same workload of %s", podInfo.Pod.Name, pod.Name)
 			}
 		}
 	}
@@ -178,7 +170,7 @@ func (*CustomScheduler) NormalizeScore(ctx context.Context, state *framework.Cyc
 		compress = compress * 2
 		maxDiff = maxDiff / compress
 	}
-	klog.Infof("NormalizeScore is called, maxDiff: %v, compress: %v", maxDiff, compress)
+	debugLog("NormalizeScore is called, maxDiff: %v, compress: %v", maxDiff, compress)
 	for i, NodeScore := range scores {
 		if NodeScore.Score == 0 {
 			scores[i].Score = 100
@@ -233,40 +225,29 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 	return true
 }
 
-// func compareLables(podLabels map[string]string, selectorLabels map[string]string) bool {
-// 	if len(podLabels) != len(selectorLabels) {
-// 		klog.Infof("podLabels's length is not equal to selectorLabels")
-// 		return false
-// 	}
-// 	for key, value := range selectorLabels {
-// 		if _, ok := podLabels[key]; !ok {
-// 			klog.Infof("podLabels key: %s is not exist", key)
-// 			return false
-// 		}
-// 		if podLabels[key] != value {
-// 			klog.Infof("podLabels key: %s value: %s is not equal to selectorLabels value: %s", key, podLabels[key], value)
-// 			return false
-// 		}
-// 	}
-// 	return true
-// }
-
 // 判断pod的namespace、ownerReferences中的kind和name是否与selector中的namespace、ownerReferences中的kind和name匹配
 func compareOwnerReferences(pod *v1.Pod, nodePod *v1.Pod) bool {
 	if pod.Namespace != nodePod.Namespace {
-		klog.Infof("%s's podNamespace: %s is not equal to nodePod %s's Namespace: %s",pod.Name,pod.Namespace, nodePod.Name, nodePod.Namespace)
+		debugLog("%s's podNamespace: %s is not equal to nodePod %s's Namespace: %s",pod.Name,pod.Namespace, nodePod.Name, nodePod.Namespace)
 		return false
 	}
 	if nodePod.OwnerReferences == nil || len(nodePod.OwnerReferences) != 1 {
-		klog.Infof("%s's podOwnerReferences of Node's pod is empty or len is not 1", nodePod.Name)
+		debugLog("%s's podOwnerReferences of Node's pod is empty or len is not 1", nodePod.Name)
 		return false
 	}
 	if nodePod.OwnerReferences[0].Kind != "StatefulSet"{
-		klog.Infof("%s's podOwnerReferences of Node's pod is not StatefulSet", nodePod.Name)
+		debugLog("%s's podOwnerReferences of Node's pod is not StatefulSet", nodePod.Name)
 	}
 	if pod.OwnerReferences[0].Name != nodePod.OwnerReferences[0].Name || string(pod.OwnerReferences[0].UID) != string(nodePod.OwnerReferences[0].UID) {
-		klog.Infof("%s's podOwnerReferences of pod: %s %s is not equal to OwnerReferences of Node %s's pod: %s %s ", pod.Name, pod.OwnerReferences[0].Name, pod.OwnerReferences[0].UID, nodePod.Name, nodePod.OwnerReferences[0].Name, nodePod.OwnerReferences[0].UID)
+		debugLog("%s's podOwnerReferences of pod: %s %s is not equal to OwnerReferences of Node %s's pod: %s %s ", pod.Name, pod.OwnerReferences[0].Name, pod.OwnerReferences[0].UID, nodePod.Name, nodePod.OwnerReferences[0].Name, nodePod.OwnerReferences[0].UID)
 		return false
 	}
 	return true
+}
+
+// 自定义日志打印方法，当klog.v(6)时才打印
+func debugLog(format string, args ...interface{}) {
+    if klog.V(6).Enabled(){
+        klog.Infof(format, args...)
+    }
 }
