@@ -51,16 +51,16 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 		return 1, framework.AsStatus(fmt.Errorf("invalid annotation format for pod %s: %v", pod.Name, err))
 	}
 	// 判断是否存在AnnotationKey，如果不存在，则以待调度的pod的label作为selector
-	selector := pod.Annotations[AnnotationKey]
+	selector, ok := pod.Annotations[AnnotationKey]
 	// AnnotationKey格式为k1=v1，如果是多个，使用","连接
 	// 提取成selector列表，用于匹配，提取和匹配逻辑在matchesSelector函数中实现
 	/*
-	一般情况下，通过pod的索引让pod滚动分布，调度的对象和比较的pod对象拥有相同的lables，因此无需指定注解标识要比较的pod的特征。
-	考虑一些极特殊的需求，例如通过此调度器，让game服务滚动分布了，同时希望让相同编号的mail服务也滚动分布，此时需要通过pod的注解标识来指定mail服务pod的特征。
-	当然上面这个例子，最好的做法是将game服务和mail服务放在同一个pod中。
+		一般情况下，通过pod的索引让pod滚动分布，调度的对象和比较的pod对象拥有相同的lables，因此无需指定注解标识要比较的pod的特征。
+		考虑一些极特殊的需求，例如通过此调度器，让game服务滚动分布了，同时希望让相同编号的mail服务也滚动分布，此时需要通过pod的注解标识来指定mail服务pod的特征。
+		当然上面这个例子，最好的做法是将game服务和mail服务放在同一个pod中。
 	*/
 	var nodePodIndexs []int
-	if selector != "" {
+	if ok {
 		// 添加正则判断：selector格式是否符合：k1=v1，如果是多个，使用","连接
 		re, _ := regexp.Compile(`^[a-zA-Z0-9]+=[a-zA-Z0-9]+(,[a-zA-Z0-9]+=[a-zA-Z0-9]+)*$`)
 		if !re.MatchString(selector) {
@@ -76,15 +76,16 @@ func (p *CustomScheduler) Score(ctx context.Context, state *framework.CycleState
 				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
 			}
 		}
-	}else{
+	} else {
 		for _, podInfo := range nodeInfo.Pods {
 			// 判断当前pod的lables是否和节点上的pod的lables相同
-			if compareLables(pod.Labels, podInfo.Pod.Labels){
-			nodePodIndex, err := getPodIndex(podInfo.Pod)
-			if err != nil {
-				continue
-			}
-			nodePodIndexs = append(nodePodIndexs, nodePodIndex)
+			klog.Infof("Now podName: %s, podLabels: %v, nodePodLabels: %v", pod.Name, pod.Labels, podInfo.Pod.Labels)
+			if compareLables(pod.Labels, podInfo.Pod.Labels) {
+				nodePodIndex, err := getPodIndex(podInfo.Pod)
+				if err != nil {
+					continue
+				}
+				nodePodIndexs = append(nodePodIndexs, nodePodIndex)
 			}
 		}
 	}
@@ -214,13 +215,16 @@ func matchesSelector(pod *v1.Pod, selector string) bool {
 
 func compareLables(podLabels map[string]string, selectorLabels map[string]string) bool {
 	if len(podLabels) != len(selectorLabels) {
+		klog.Infof("podLabels's length is not equal to selectorLabels")
 		return false
 	}
 	for key, value := range selectorLabels {
 		if _, ok := podLabels[key]; !ok {
+			klog.Infof("podLabels key: %s is not exist", key)
 			return false
 		}
 		if podLabels[key] != value {
+			klog.Infof("podLabels key: %s value: %s is not equal to selectorLabels value: %s", key, podLabels[key], value)
 			return false
 		}
 	}
